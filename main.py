@@ -7,10 +7,9 @@ MAIN_URL = 'https://maxtondesign.com/eng_m_Our-Offer-1876.html'
 PAGE_URL = 'https://maxtondesign.com/eng_m_Our-Offer-1876.html?counter={}'
 
 class Data_Extractor:
-    def __init__(self) -> None:
+    def __init__(self):
         self.session = requests.Session()
         self.page_counts = 0
-        pass
 
         try:
             os.mkdir('output')
@@ -23,49 +22,49 @@ class Data_Extractor:
 
     def get_data(self):
         print('Start Getting Data from ------maxtondesign.com------')
-        try:
-            self.playwright = sync_playwright().start()
-            self.browser = self.playwright.chromium.launch(
-                headless= False
-            )
-            self.context = self.browser.new_context()
-            self.page = self.context.new_page()
-            self.page.goto('https://maxtondesign.com/eng_m_Our-Offer-1876.html', timeout=300000)
-            self.page.locator('.acceptAll').click()
 
-            self.page_counts = self.page.locator('#paging_setting_top > ul > li:nth-child(10)').text_content()
+        try:
+            response = self.get_request(MAIN_URL)
+            content = response.text
+            soup_page= BeautifulSoup(content, 'html.parser')    
+            self.page_counts = soup_page.find('ul', 'pagination').find_all('li')[9].get_text()
+            
             print('Got Page Counts : ', self.page_counts , 'pages')
+            
             for page in range(0, int(self.page_counts)-1):
+                print('Started reading Page ', page , '...')
+
                 temp_url = []
-    
-                # self.page.goto(PAGE_URL.format(page), timeout=300000)
                 temp_url = self.get_url(PAGE_URL.format(page))
-    
+
                 for url in temp_url:
                     product_id = str(url).split('-')[2]
                     self.get_data_detailpage(url, product_id)
 
-            self.page.wait_for_timeout(100000000)
+                print('Finished reading Page ', page, '.')            
+
+            self.browser.close()
+            print('Finished Getting Data')
+
         except Exception as e:
             print('There is Error : ', e)
             return
     
     def get_url(self, url):
-
         temp_urls = []
+        
         response = self.get_request(url)
         content = response.text
         
         soup_page= BeautifulSoup(content, 'html.parser')    
-        
         for product in soup_page.find_all('div', 'product_wrapper_sub'):
             temp_urls.append(product.find('a')['href'])
-        print(temp_urls)
 
         return temp_urls
     
     def get_data_detailpage(self, url, product_id):
         car_data = dict()
+
         response = self.get_request(url)
         content = response.text
         
@@ -79,11 +78,12 @@ class Data_Extractor:
             car_data['production_info'] = soup_page.find(class_='param_informacje_desc').get_text()
         except:
             car_data['production_info'] = ""
-
         car_data['description'] = soup_page.find(class_='projector_longdescription').get_text()
         
+        print('Saving File (', (str.format('{}.json', car_data['product_id'])), ')...')
         with open(str.format('output/{}.json', car_data['product_id']), 'w') as f:
             json.dump(car_data, f)
+
 
 def main():
     extractor =Data_Extractor()
